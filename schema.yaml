@@ -1,0 +1,54 @@
+title: Binario Cloud - Onboarding de migracao OCI -> BCP
+description: Cria usuario de servico (somente API key), grupo, policy de menor privilegio e bucket privado bc-migration-<id do onboarding>.
+schemaVersion: 1.1.0
+version: "20261028"
+locale: pt_BR
+variableGroups:
+  - title: Binario Cloud
+    variables: [onboarding_code, source_compartment_ocid, parent_compartment_ocid, service_user_email]
+  - title: Avancado (nao altere sem orientacao da Binario Cloud)
+    visible: false
+    variables: [enable_callback, callback_url]
+  - title: Oculto
+    visible: false
+    variables: [tenancy_ocid, region]
+variables:
+  onboarding_code:
+    type: string
+    required: true
+    title: Codigo de onboarding enviado pela Binario Cloud
+    description: Codigo publico (contem apenas a chave publica da Binario Cloud e o ID do onboarding).
+  source_compartment_ocid:
+    type: oci:identity:compartment:id
+    required: true
+    title: Compartment das VMs a migrar
+  parent_compartment_ocid:
+    type: oci:identity:compartment:id
+    required: false
+    title: Onde criar o compartment bc-migration-<id> (vazio = raiz)
+  service_user_email:
+    type: string
+    required: false
+    title: E-mail do usuario de servico (so se o Apply pedir; tenancies com Identity Domains)
+  enable_callback:
+    type: boolean
+    default: false
+    title: Enviar outputs automaticamente a Binario Cloud
+  callback_url:
+    type: string
+    required: false
+    title: URL do callback
+  tenancy_ocid:
+    type: string
+  region:
+    type: oci:identity:region:name
+outputs:
+  handoff_code:
+    type: string
+    title: Codigo de retorno (copie e envie a Binario Cloud)
+  service_user_ocid:
+    type: ocid
+    title: Usuario de servico
+  api_key_fingerprint:
+    type: string
+    title: Fingerprint da API key
