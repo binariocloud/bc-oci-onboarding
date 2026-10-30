@@ -30,9 +30,26 @@ variable "parent_compartment_ocid" {
 }
 
 variable "service_user_email" {
-  description = "E-mail do usuario de servico (exigido em tenancies com Identity Domains; vazio = sem e-mail)"
+  # Obrigatorio desde 1.0.2: tenancies com Identity Domains recusam CreateUser sem e-mail
+  # (400 IdcsConversionError "The primary email must be specified") e o Apply quebrava pela metade.
+  description = "E-mail do usuario de servico (obrigatorio)"
   type        = string
-  default     = ""
+
+  validation {
+    condition     = can(regex("^[^@[:space:]]+@[^@[:space:]]+$", trimspace(var.service_user_email)))
+    error_message = "service_user_email e obrigatorio (ex.: cloud@empresa.com.br)."
+  }
+}
+
+variable "helper_vcn_cidr" {
+  description = "CIDR da VCN isolada da VM auxiliar (so precisa mudar se colidir com alguma rede pareada)"
+  type        = string
+  default     = "10.254.254.0/28"
+
+  validation {
+    condition     = can(cidrhost(var.helper_vcn_cidr, 0))
+    error_message = "helper_vcn_cidr precisa ser um CIDR IPv4 valido (ex.: 10.254.254.0/28)."
+  }
 }
 
 variable "enable_callback" {

@@ -1,11 +1,13 @@
 title: Binario Cloud - Onboarding de migracao OCI -> BCP
-description: Cria usuario de servico (somente API key), grupo, policy de menor privilegio e bucket privado bc-migration-<id do onboarding>.
+description: Cria usuario de servico (somente API key), grupo, policy de menor privilegio, bucket privado bc-migration-<id do onboarding> e uma rede privada isolada (sem internet) para a VM auxiliar de copia dos discos.
 schemaVersion: 1.1.0
-version: "20261028"
+version: "20261030"
 locale: pt_BR
 variableGroups:
   - title: Binario Cloud
     variables: [onboarding_code, source_compartment_ocid, parent_compartment_ocid, service_user_email]
+  - title: Rede da VM auxiliar (opcional)
+    variables: [helper_vcn_cidr]
   - title: Avancado (nao altere sem orientacao da Binario Cloud)
     visible: false
     variables: [enable_callback, callback_url]
@@ -28,8 +30,15 @@ variables:
     title: Onde criar o compartment bc-migration-<id> (vazio = raiz)
   service_user_email:
     type: string
+    required: true
+    title: E-mail do usuario de servico
+    description: Obrigatorio (tenancies com Identity Domains recusam usuario sem e-mail). Pode ser um e-mail da equipe de TI.
+  helper_vcn_cidr:
+    type: string
     required: false
-    title: E-mail do usuario de servico (so se o Apply pedir; tenancies com Identity Domains)
+    default: 10.254.254.0/28
+    title: CIDR da rede da VM auxiliar
+    description: VCN isolada, sem internet (so Oracle Services Network). Mude apenas se colidir com uma rede pareada.
   enable_callback:
     type: boolean
     default: false
@@ -52,3 +61,6 @@ outputs:
   api_key_fingerprint:
     type: string
     title: Fingerprint da API key
+  helper_subnet_ocid:
+    type: ocid
+    title: Subnet privada da VM auxiliar
