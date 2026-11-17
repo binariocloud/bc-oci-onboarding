@@ -183,11 +183,9 @@ resource "oci_core_route_table" "p2p" {
   compartment_id = oci_identity_compartment.bc.id
   vcn_id         = oci_core_vcn.helper.id
   display_name   = "${local.name}-p2p-rt"
-  route_rules {
-    destination       = local.osn_cidr
-    destination_type  = "SERVICE_CIDR_BLOCK"
-    network_entity_id = oci_core_service_gateway.helper.id
-  }
+  # 1.1.1: só o internet gateway. A OCI recusa IGW e service gateway "All Services" na mesma tabela
+  # (400-InvalidParameter); o Object Storage (PARs dos marcadores) sai pelo IGW até o endpoint público, e a
+  # regra de saída 443 com o rótulo de serviço vale também nesse caminho.
   route_rules {
     destination       = "0.0.0.0/0"
     destination_type  = "CIDR_BLOCK"

@@ -1,7 +1,7 @@
 title: Binario Cloud - Onboarding de migracao OCI -> BCP
 description: Cria usuario de servico (somente API key), grupo, policy de menor privilegio, bucket privado bc-migration-<id do onboarding> uma rede privada isolada (sem internet) para a VM auxiliar de copia dos discos e, opcionalmente (padrao), uma subnet publica sem nenhuma entrada para a copia direta ao BCP (motor disk).
 schemaVersion: 1.1.0
-version: "20261112"
+version: "20261117"
 locale: pt_BR
 variableGroups:
   - title: Binario Cloud
