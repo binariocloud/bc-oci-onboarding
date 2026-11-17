@@ -68,7 +68,7 @@ resource "oci_identity_policy" "bc" {
   compartment_id = var.tenancy_ocid
   name           = "${local.name}-policy"
   description    = "Menor privilegio para migracao Binario Cloud"
-  statements = [
+  statements = concat([
     # origem: inventário (VM, imagem base, anexos de disco, volumes) e SOFTSTOP/START do modo consistent
     "Allow group ${local.group} to read instance-family in compartment id ${var.source_compartment_ocid}",
     "Allow group ${local.group} to use instances in compartment id ${var.source_compartment_ocid}",
@@ -89,7 +89,10 @@ resource "oci_identity_policy" "bc" {
     "Allow group ${local.group} to read buckets in compartment id ${oci_identity_compartment.bc.id} where target.bucket.name='${local.bucket}'",
     "Allow group ${local.group} to manage objects in compartment id ${oci_identity_compartment.bc.id} where target.bucket.name='${local.bucket}'",
     "Allow group ${local.group} to manage buckets in compartment id ${oci_identity_compartment.bc.id} where all {target.bucket.name='${local.bucket}', request.permission='PAR_MANAGE'}",
-  ]
+    ],
+    # 1.1.0 (motor disk): IP público efêmero da auxiliar na subnet P2P, só no compartment da BC
+    local.p2p ? ["Allow group ${local.group} to manage public-ips in compartment id ${oci_identity_compartment.bc.id}"] : [],
+  )
 }
 
 # Rede da VM auxiliar (1.0.2): VCN pequena e isolada no compartment da BC. Subnet privada, sem internet gateway
@@ -103,6 +106,7 @@ data "oci_core_services" "osn" {
 }
 
 locals {
+  p2p            = var.p2p_egress == "igw"
   osn_service_id = data.oci_core_services.osn.services[0].id
   osn_cidr       = data.oci_core_services.osn.services[0].cidr_block
 }
@@ -110,7 +114,9 @@ locals {
 resource "oci_core_vcn" "helper" {
   compartment_id = oci_identity_compartment.bc.id
   display_name   = "${local.name}-vcn"
-  cidr_blocks    = [var.helper_vcn_cidr]
+  # 1.1.0: o bloco da subnet P2P entra na mesma VCN (a free tier não deixa criar outra VCN); acrescentar CIDR
+  # numa VCN existente é atualização no lugar
+  cidr_blocks = local.p2p ? [var.helper_vcn_cidr, var.p2p_subnet_cidr] : [var.helper_vcn_cidr]
 }
 
 resource "oci_core_service_gateway" "helper" {
@@ -158,6 +164,77 @@ resource "oci_core_subnet" "helper" {
   prohibit_public_ip_on_vnic = true
   route_table_id             = oci_core_route_table.helper.id
   security_list_ids          = [oci_core_security_list.helper.id]
+}
+
+# Saída P2P do motor disk (1.1.0, p2p_egress = "igw"): subnet pública NOVA na mesma VCN (a subnet da auxiliar
+# é privada e esse campo é imutável), internet gateway e rota. A auxiliar do motor disk sobe aqui com IP público
+# efêmero e copia os discos direto para o BCP por SSH. Nenhuma regra de entrada; saída só TCP 22 para os FIPs do
+# BCP e 443 para a Oracle Services Network. Com "none" nada disso existe e a source só migra por imagem.
+resource "oci_core_internet_gateway" "p2p" {
+  count          = local.p2p ? 1 : 0
+  compartment_id = oci_identity_compartment.bc.id
+  vcn_id         = oci_core_vcn.helper.id
+  display_name   = "${local.name}-igw"
+  enabled        = true
+}
+
+resource "oci_core_route_table" "p2p" {
+  count          = local.p2p ? 1 : 0
+  compartment_id = oci_identity_compartment.bc.id
+  vcn_id         = oci_core_vcn.helper.id
+  display_name   = "${local.name}-p2p-rt"
+  route_rules {
+    destination       = local.osn_cidr
+    destination_type  = "SERVICE_CIDR_BLOCK"
+    network_entity_id = oci_core_service_gateway.helper.id
+  }
+  route_rules {
+    destination       = "0.0.0.0/0"
+    destination_type  = "CIDR_BLOCK"
+    network_entity_id = oci_core_internet_gateway.p2p[0].id
+  }
+}
+
+resource "oci_core_security_list" "p2p" {
+  count          = local.p2p ? 1 : 0
+  compartment_id = oci_identity_compartment.bc.id
+  vcn_id         = oci_core_vcn.helper.id
+  display_name   = "${local.name}-p2p-sl"
+  # sem regra de entrada: nada entra na auxiliar (a lista é stateful: só volta a resposta do que ela abriu)
+  egress_security_rules {
+    destination      = local.osn_cidr
+    destination_type = "SERVICE_CIDR_BLOCK"
+    protocol         = "6"
+    stateless        = false
+    tcp_options {
+      min = 443
+      max = 443
+    }
+  }
+  dynamic "egress_security_rules" {
+    for_each = var.bcp_fip_cidrs
+    content {
+      destination      = egress_security_rules.value
+      destination_type = "CIDR_BLOCK"
+      protocol         = "6"
+      stateless        = false
+      tcp_options {
+        min = 22
+        max = 22
+      }
+    }
+  }
+}
+
+resource "oci_core_subnet" "p2p" {
+  count                      = local.p2p ? 1 : 0
+  compartment_id             = oci_identity_compartment.bc.id
+  vcn_id                     = oci_core_vcn.helper.id
+  display_name               = "${local.name}-p2p-subnet"
+  cidr_block                 = var.p2p_subnet_cidr
+  prohibit_public_ip_on_vnic = false
+  route_table_id             = oci_core_route_table.p2p[0].id
+  security_list_ids          = [oci_core_security_list.p2p[0].id]
 }
 
 # H2 (PROVISORIA, desligado por padrao): POST dos mesmos dados nao secretos do handoff_code.

@@ -14,6 +14,7 @@ locals {
     service_user_ocid       = oci_identity_user.bc.id
     api_key_fingerprint     = oci_identity_api_key.bc.fingerprint
     helper_subnet_ocid      = oci_core_subnet.helper.id
+    p2p_subnet_ocid         = local.p2p ? oci_core_subnet.p2p[0].id : null
   }
 }
 
@@ -21,3 +22,4 @@ output "handoff_code" { value = base64encode(jsonencode(local.handoff)) }
 output "service_user_ocid" { value = oci_identity_user.bc.id }
 output "api_key_fingerprint" { value = oci_identity_api_key.bc.fingerprint }
 output "helper_subnet_ocid" { value = oci_core_subnet.helper.id }
+output "p2p_subnet_ocid" { value = local.p2p ? oci_core_subnet.p2p[0].id : "" }

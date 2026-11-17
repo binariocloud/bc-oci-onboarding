@@ -52,6 +52,39 @@ variable "helper_vcn_cidr" {
   }
 }
 
+variable "p2p_egress" {
+  description = "Saida da auxiliar do motor disk: igw (subnet publica + internet gateway) ou none (so motor por imagem)"
+  type        = string
+  default     = "igw"
+
+  validation {
+    condition     = contains(["igw", "none"], var.p2p_egress)
+    error_message = "p2p_egress deve ser igw ou none."
+  }
+}
+
+variable "p2p_subnet_cidr" {
+  description = "CIDR da subnet publica da copia direta (entra como segundo bloco da VCN da auxiliar)"
+  type        = string
+  default     = "10.254.253.0/28"
+
+  validation {
+    condition     = can(cidrhost(var.p2p_subnet_cidr, 0))
+    error_message = "p2p_subnet_cidr precisa ser um CIDR IPv4 valido (ex.: 10.254.253.0/28)."
+  }
+}
+
+variable "bcp_fip_cidrs" {
+  description = "Faixas de floating IP do BCP: unico destino da saida TCP 22 da auxiliar do motor disk"
+  type        = list(string)
+  default     = ["200.218.225.0/24"]
+
+  validation {
+    condition     = length(var.bcp_fip_cidrs) > 0 && alltrue([for c in var.bcp_fip_cidrs : can(cidrhost(c, 0))])
+    error_message = "bcp_fip_cidrs precisa de pelo menos um CIDR IPv4 valido."
+  }
+}
+
 variable "enable_callback" {
   description = "H2 (PROVISORIA): envia os outputs a API da Binario Cloud. Desligado por padrao"
   type        = bool
